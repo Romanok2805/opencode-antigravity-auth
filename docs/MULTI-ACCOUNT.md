@@ -8,6 +8,76 @@ opencode auth login  # Run again to add more accounts
 
 ---
 
+## Account Management Menu
+
+When running `opencode auth login` with existing accounts, an interactive TUI menu appears:
+
+```
+┌  Manage accounts
+│
+◆  Select account
+
+│  ● Add new account
+│  ○ user1@gmail.com [active]  used today
+│  ○ user2@gmail.com [rate-limited]  used yesterday
+│  ○ Delete all accounts
+│
+│  ↑/↓ to select • Enter: confirm
+└
+```
+
+Use arrow keys to navigate, Enter to select. The menu supports:
+- **Keyboard navigation** — Up/Down arrows to move between options
+- **Color-coded status** — Green for active, yellow for rate-limited, red for expired
+- **Relative timestamps** — "today", "yesterday", "3d ago", etc.
+
+### Menu Options
+
+| Option | Description |
+|--------|-------------|
+| **Add new account** | Add another Google account to the pool |
+| **\<account email\>** | Select to view account details and management options |
+| **Delete all accounts** | Remove all accounts and start fresh (requires confirmation) |
+
+### Account Status Badges
+
+| Badge | Color | Meaning |
+|-------|-------|---------|
+| `[active]` | Green | Account is available for use |
+| `[rate-limited]` | Yellow | Account has hit quota limits (will auto-recover) |
+| `[expired]` | Red | Token needs refresh |
+
+### Account Details View
+
+Selecting an account shows detailed information and actions:
+
+```
+Account: user1@gmail.com [active]
+Added: 1/15/2026
+Last used: today
+
+┌  Account options
+│
+◆  Select action
+
+│  ● Back
+│  ○ Refresh token
+│  ○ Delete this account
+│
+│  ↑/↓ to select • Enter: confirm
+└
+```
+
+| Action | Color | Description |
+|--------|-------|-------------|
+| **Back** | — | Return to main menu |
+| **Refresh token** | Cyan | Re-authenticate this account (fixes expired tokens) |
+| **Delete this account** | Red | Remove only this account from the pool (requires confirmation) |
+
+> **Note:** Destructive actions (delete, refresh) require confirmation before executing.
+
+---
+
 ## Load Balancing Behavior
 
 - **Sticky account selection** — Sticks to the same account until rate-limited (preserves Anthropic's prompt cache)
@@ -41,7 +111,9 @@ To enable automatic fallback between pools, set in `antigravity.json`:
 
 ## Adding Accounts
 
-When running `opencode auth login` with existing accounts:
+Select **Add new account** from the management menu to add more accounts while keeping existing ones.
+
+For non-interactive terminals (CI/CD, scripts), the plugin falls back to a simple text prompt:
 
 ```
 2 account(s) saved:
@@ -50,8 +122,6 @@ When running `opencode auth login` with existing accounts:
 
 (a)dd new account(s) or (f)resh start? [a/f]:
 ```
-
-Choose `a` to add more accounts while keeping existing ones.
 
 ---
 
@@ -66,11 +136,15 @@ Accounts are stored in `~/.config/opencode/antigravity-accounts.json`:
     {
       "email": "user1@gmail.com",
       "refreshToken": "1//0abc...",
-      "projectId": "my-gcp-project"
+      "projectId": "my-gcp-project",
+      "addedAt": 1737100800000,
+      "lastUsed": 1737187200000
     },
     {
       "email": "user2@gmail.com",
-      "refreshToken": "1//0xyz..."
+      "refreshToken": "1//0xyz...",
+      "addedAt": 1737014400000,
+      "lastUsed": 1737100800000
     }
   ],
   "activeIndex": 0,
@@ -90,6 +164,8 @@ Accounts are stored in `~/.config/opencode/antigravity-accounts.json`:
 | `email` | Google account email |
 | `refreshToken` | OAuth refresh token (auto-managed) |
 | `projectId` | Optional. Required for Gemini CLI models. See [Troubleshooting](TROUBLESHOOTING.md#gemini-cli-permission-error). |
+| `addedAt` | Timestamp when account was added |
+| `lastUsed` | Timestamp of last API request with this account |
 | `activeIndex` | Currently active account index |
 | `activeIndexByFamily` | Per-model-family active account (claude/gemini tracked separately) |
 
@@ -99,7 +175,12 @@ Accounts are stored in `~/.config/opencode/antigravity-accounts.json`:
 
 If Google revokes a token (e.g., password change, security event), you'll see `invalid_grant` errors. The plugin automatically removes invalid accounts.
 
-To manually reset:
+**To refresh a single account:**
+1. Run `opencode auth login`
+2. Select the affected account from the menu
+3. Choose **Refresh token**
+
+**To manually reset all accounts:**
 
 ```bash
 rm ~/.config/opencode/antigravity-accounts.json
